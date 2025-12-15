@@ -1,22 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { config } from '@/lib/config';
 
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
 export async function POST(request: NextRequest) {
   try {
-    const { operationName, geminiApiKey } = await request.json();
+    const { operationName } = await request.json();
 
-    if (!operationName || !geminiApiKey) {
+    if (!operationName) {
       return NextResponse.json(
-        { error: 'Operation name and API key are required' },
+        { error: 'Operation name is required' },
         { status: 400 }
       );
+    }
+
+    if (!config.geminiApiKeys || config.geminiApiKeys.length === 0) {
+      return NextResponse.json({ error: 'Gemini API keys not configured' }, { status: 500 });
     }
 
     const response = await fetch(`${BASE_URL}/${operationName}`, {
       method: 'GET',
       headers: {
-        'x-goog-api-key': geminiApiKey,
+        'x-goog-api-key': config.geminiApiKeys[0],
       },
     });
 

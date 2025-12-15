@@ -11,7 +11,6 @@ export default function Home() {
   const [duration, setDuration] = useState<4 | 6 | 8>(8);
   
   const [isGenerating, setIsGenerating] = useState(false);
-  const [operationName, setOperationName] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,8 +30,8 @@ export default function Home() {
   };
 
   const getSuggestions = async () => {
-    if (!prompt.trim() || !apiKeys.openaiKey) {
-      alert('Please enter a prompt and set OpenAI API key');
+    if (!prompt.trim()) {
+      alert('Please enter a prompt');
       return;
     }
 
@@ -46,12 +45,12 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userInput: prompt,
-          openaiApiKey: apiKeys.openaiKey,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to get suggestions');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to get suggestions');
       }
 
       const data = await response.json();
@@ -70,12 +69,6 @@ export default function Home() {
       return;
     }
 
-    if (apiKeys.geminiKeys.length === 0) {
-      alert('Please add at least one Gemini API key in settings');
-      setShowSettings(true);
-      return;
-    }
-
     setIsGenerating(true);
     setError(null);
     setVideoUrl(null);
@@ -91,7 +84,6 @@ export default function Home() {
           resolution,
           aspectRatio,
           duration,
-          geminiApiKeys: apiKeys.geminiKeys,
         }),
       });
 
@@ -101,7 +93,6 @@ export default function Home() {
       }
 
       const data = await response.json();
-      setOperationName(data.operationName);
       pollStatus(data.operationName);
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Unknown error');
@@ -118,12 +109,12 @@ export default function Home() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             operationName: opName,
-            geminiApiKey: apiKeys.geminiKeys[0],
           }),
         });
 
         if (!response.ok) {
-          throw new Error('Failed to check status');
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to check status');
         }
 
         const data = await response.json();
@@ -158,12 +149,12 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           videoUrl,
-          geminiApiKey: apiKeys.geminiKeys[0],
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to download video');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to download video');
       }
 
       const blob = await response.blob();
@@ -184,59 +175,10 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 p-8">
       <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
+        <div className="mb-8">
           <h1 className="text-4xl font-bold text-gray-800">Veo 3.1 Video Generator</h1>
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition"
-          >
-            ⚙️ Settings
-          </button>
+          <p className="text-gray-600 mt-2">Configure API keys in .env.local file</p>
         </div>
-
-        {showSettings && (
-          <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-            <h2 className="text-2xl font-semibold mb-4">API Keys Settings</h2>
-            
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Gemini API Keys (one per line)
-              </label>
-              <textarea
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                rows={4}
-                placeholder="Enter Gemini API keys, one per line"
-                value={apiKeys.geminiKeys.join('\n')}
-                onChange={(e) =>
-                  setApiKeys({
-                    ...apiKeys,
-                    geminiKeys: e.target.value.split('\n').filter((k) => k.trim()),
-                  })
-                }
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                OpenAI API Key (for prompt suggestions)
-              </label>
-              <input
-                type="password"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="sk-..."
-                value={apiKeys.openaiKey}
-                onChange={(e) => setApiKeys({ ...apiKeys, openaiKey: e.target.value })}
-              />
-            </div>
-
-            <button
-              onClick={() => saveApiKeys(apiKeys)}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-            >
-              Save Settings
-            </button>
-          </div>
-        )}
 
         <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
           <h2 className="text-2xl font-semibold mb-4">Create Your Video</h2>
@@ -254,7 +196,7 @@ export default function Home() {
             />
             <button
               onClick={getSuggestions}
-              disabled={loadingSuggestions || !apiKeys.openaiKey}
+              disabled={loadingSuggestions}
               className="mt-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50"
             >
               {loadingSuggestions ? '🤖 Getting suggestions...' : '✨ Get AI Suggestions'}

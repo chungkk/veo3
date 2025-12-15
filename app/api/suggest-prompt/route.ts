@@ -1,22 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { config } from '@/lib/config';
 
 export async function POST(request: NextRequest) {
   try {
-    const { userInput, openaiApiKey } = await request.json();
+    const { userInput } = await request.json();
 
     if (!userInput) {
       return NextResponse.json({ error: 'User input is required' }, { status: 400 });
     }
 
-    if (!openaiApiKey) {
-      return NextResponse.json({ error: 'OpenAI API key is required' }, { status: 400 });
+    if (!config.openaiApiKey) {
+      return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
     }
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${openaiApiKey}`,
+        Authorization: `Bearer ${config.openaiApiKey}`,
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',

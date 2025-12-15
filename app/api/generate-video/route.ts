@@ -1,51 +1,51 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ApiKeyManager } from '@/lib/apiKeyManager';
 import { VideoGenerationRequest } from '@/lib/types';
+import { config } from '@/lib/config';
 
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
 export async function POST(request: NextRequest) {
   try {
-    const body: VideoGenerationRequest & { geminiApiKeys: string[] } = await request.json();
-    const { prompt, image, resolution = '720p', aspectRatio = '16:9', geminiApiKeys } = body;
+    console.log('[Veo3] Received video generation request');
+    const body: VideoGenerationRequest = await request.json();
+    console.log('[Veo3] Request body parsed:', { hasPrompt: !!body.prompt, hasImage: !!body.image });
+    const { prompt, image, resolution = '720p', aspectRatio = '16:9' } = body;
 
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
     }
 
-    if (!geminiApiKeys || geminiApiKeys.length === 0) {
-      return NextResponse.json({ error: 'At least one Gemini API key is required' }, { status: 400 });
+    console.log('[Veo3] Checking API keys from env...');
+    console.log('[Veo3] GEMINI_API_KEYS env var:', process.env.GEMINI_API_KEYS ? 'exists' : 'missing');
+    console.log('[Veo3] Config geminiApiKeys length:', config.geminiApiKeys.length);
+    
+    if (!config.geminiApiKeys || config.geminiApiKeys.length === 0) {
+      return NextResponse.json({ error: 'Gemini API keys not configured' }, { status: 500 });
     }
 
-    const keyManager = new ApiKeyManager(geminiApiKeys);
+    console.log(`[Veo3] Using ${config.geminiApiKeys.length} API key(s)`);
+    const keyManager = new ApiKeyManager(config.geminiApiKeys);
     let currentKey = keyManager.getCurrentGeminiKey();
     let lastError: Error | null = null;
 
     // Try with each available API key
-    for (let attempt = 0; attempt < geminiApiKeys.length; attempt++) {
+    for (let attempt = 0; attempt < config.geminiApiKeys.length; attempt++) {
       if (!currentKey) {
         break;
       }
 
       try {
-        // Build request payload
+        // Build request payload - Veo 3.1 does not support parameters inside instances
         const payload: {
           instances: Array<{
             prompt: string;
             image?: { bytesBase64Encoded: string };
-            parameters: {
-              aspectRatio: string;
-              resolution: string;
-            };
           }>;
         } = {
           instances: [
             {
               prompt: prompt,
-              parameters: {
-                aspectRatio: aspectRatio,
-                resolution: resolution,
-              },
             },
           ],
         };
@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
 
         if (!response.ok) {
           const errorText = await response.text();
+          console.error(`[Veo3] API Error: ${response.status}`, errorText);
           throw new Error(`API error: ${response.status} - ${errorText}`);
         }
 
