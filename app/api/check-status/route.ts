@@ -55,8 +55,9 @@ export async function POST(request: NextRequest) {
       operationName,
       progress: data.metadata?.progressPercentage || 0,
     });
-  } catch (error: any) {
-    console.error('Error checking status:', error);
-    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    console.error('Error checking status:', err);
+    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
   }
 }

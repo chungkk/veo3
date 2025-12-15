@@ -1,12 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Image from 'next/image';
-
-interface ApiKeys {
-  geminiKeys: string[];
-  openaiKey: string;
-}
 
 export default function Home() {
   const [prompt, setPrompt] = useState('');
@@ -14,9 +9,6 @@ export default function Home() {
   const [resolution, setResolution] = useState<'720p' | '1080p'>('720p');
   const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9'>('16:9');
   const [duration, setDuration] = useState<4 | 6 | 8>(8);
-  
-  const [apiKeys, setApiKeys] = useState<ApiKeys>({ geminiKeys: [], openaiKey: '' });
-  const [showSettings, setShowSettings] = useState(false);
   
   const [isGenerating, setIsGenerating] = useState(false);
   const [operationName, setOperationName] = useState<string | null>(null);
@@ -26,22 +18,6 @@ export default function Home() {
 
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
-
-  // Load API keys from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('veo3-api-keys');
-    if (saved) {
-      setApiKeys(JSON.parse(saved));
-    } else {
-      setShowSettings(true);
-    }
-  }, []);
-
-  const saveApiKeys = (keys: ApiKeys) => {
-    localStorage.setItem('veo3-api-keys', JSON.stringify(keys));
-    setApiKeys(keys);
-    setShowSettings(false);
-  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -80,8 +56,9 @@ export default function Home() {
 
       const data = await response.json();
       setSuggestions(data.suggestions || []);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('Unknown error');
+      setError(error.message);
     } finally {
       setLoadingSuggestions(false);
     }
@@ -126,8 +103,9 @@ export default function Home() {
       const data = await response.json();
       setOperationName(data.operationName);
       pollStatus(data.operationName);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('Unknown error');
+      setError(error.message);
       setIsGenerating(false);
     }
   };
@@ -162,9 +140,10 @@ export default function Home() {
         } else {
           setProgress(data.progress || 0);
         }
-      } catch (err: any) {
+      } catch (err) {
         clearInterval(interval);
-        setError(err.message);
+        const error = err instanceof Error ? err : new Error('Unknown error');
+        setError(error.message);
         setIsGenerating(false);
       }
     }, 10000); // Poll every 10 seconds
@@ -196,8 +175,9 @@ export default function Home() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('Unknown error');
+      setError(error.message);
     }
   };
 

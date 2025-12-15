@@ -62,8 +62,9 @@ Return ONLY a JSON object with this structure:
     const content = JSON.parse(data.choices[0].message.content);
 
     return NextResponse.json(content);
-  } catch (error: any) {
-    console.error('Error suggesting prompt:', error);
-    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    console.error('Error suggesting prompt:', err);
+    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
   }
 }

@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
 
     const keyManager = new ApiKeyManager(geminiApiKeys);
     let currentKey = keyManager.getCurrentGeminiKey();
-    let lastError: any = null;
+    let lastError: Error | null = null;
 
     // Try with each available API key
     for (let attempt = 0; attempt < geminiApiKeys.length; attempt++) {
@@ -29,10 +29,23 @@ export async function POST(request: NextRequest) {
 
       try {
         // Build request payload
-        const payload: any = {
+        const payload: {
+          instances: Array<{
+            prompt: string;
+            image?: { bytesBase64Encoded: string };
+            parameters: {
+              aspectRatio: string;
+              resolution: string;
+            };
+          }>;
+        } = {
           instances: [
             {
               prompt: prompt,
+              parameters: {
+                aspectRatio: aspectRatio,
+                resolution: resolution,
+              },
             },
           ],
         };
@@ -44,12 +57,6 @@ export async function POST(request: NextRequest) {
             bytesBase64Encoded: imageData,
           };
         }
-
-        // Add configuration
-        payload.instances[0].parameters = {
-          aspectRatio: aspectRatio,
-          resolution: resolution,
-        };
 
         const response = await fetch(
           `${BASE_URL}/models/veo-3.1-generate-preview:predictLongRunning`,
@@ -75,10 +82,11 @@ export async function POST(request: NextRequest) {
           operationName: data.name,
           message: 'Video generation started successfully',
         });
-      } catch (error: any) {
-        console.error(`Error with API key ${attempt + 1}:`, error.message);
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error('Unknown error');
+        console.error(`Error with API key ${attempt + 1}:`, err.message);
         keyManager.recordKeyError(currentKey);
-        lastError = error;
+        lastError = err;
         currentKey = keyManager.rotateToNextGeminiKey();
       }
     }
@@ -91,8 +99,9 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     );
-  } catch (error: any) {
-    console.error('Error generating video:', error);
-    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    console.error('Error generating video:', err);
+    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
   }
 }

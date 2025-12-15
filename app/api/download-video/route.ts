@@ -32,8 +32,9 @@ export async function POST(request: NextRequest) {
         'Content-Disposition': 'attachment; filename="generated-video.mp4"',
       },
     });
-  } catch (error: any) {
-    console.error('Error downloading video:', error);
-    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error('Unknown error');
+    console.error('Error downloading video:', err);
+    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
   }
 }
