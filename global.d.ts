@@ -1,0 +1,20 @@
+/* eslint-disable no-var */
+declare global {
+  namespace NodeJS {
+    interface Global {
+      mongoose?: {
+        conn: any;
+        promise: Promise<any> | null;
+      };
+    }
+  }
+
+  var mongoose:
+    | {
+        conn: any;
+        promise: Promise<any> | null;
+      }
+    | undefined;
+}
+
+export {};
