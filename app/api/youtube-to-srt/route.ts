@@ -65,9 +65,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Get video info
+    console.log('Fetching video info...');
     const info = await ytdl.getInfo(youtubeUrl);
+    console.log('Video title:', info.videoDetails.title);
     const videoTitle = info.videoDetails.title;
     const duration = parseInt(info.videoDetails.lengthSeconds);
+    console.log('Video duration:', duration, 'seconds');
 
     // Download audio
     const tempDir = path.join(process.cwd(), 'tmp');
@@ -78,6 +81,7 @@ export async function POST(req: NextRequest) {
     const timestamp = Date.now();
     audioPath = path.join(tempDir, `audio-${timestamp}.mp3`);
 
+    console.log('Downloading audio to:', audioPath);
     await new Promise<void>((resolve, reject) => {
       const audioStream = ytdl(youtubeUrl, {
         quality: 'lowestaudio',
@@ -87,12 +91,29 @@ export async function POST(req: NextRequest) {
       const writeStream = fs.createWriteStream(audioPath!);
       audioStream.pipe(writeStream);
 
-      writeStream.on('finish', () => resolve());
-      writeStream.on('error', reject);
-      audioStream.on('error', reject);
+      writeStream.on('finish', () => {
+        console.log('Audio download completed');
+        resolve();
+      });
+      writeStream.on('error', (err) => {
+        console.error('Write stream error:', err);
+        reject(err);
+      });
+      audioStream.on('error', (err) => {
+        console.error('Audio stream error:', err);
+        reject(err);
+      });
     });
 
     // Send to OpenAI Whisper
+    console.log('Sending to Whisper API...');
+    const fileStats = fs.statSync(audioPath);
+    console.log('Audio file size:', (fileStats.size / 1024 / 1024).toFixed(2), 'MB');
+    
+    if (fileStats.size > 25 * 1024 * 1024) {
+      throw new Error('Audio file too large (> 25 MB). Please use a shorter video.');
+    }
+
     const transcription = await openai.audio.transcriptions.create({
       file: fs.createReadStream(audioPath),
       model: 'whisper-1',
@@ -100,6 +121,7 @@ export async function POST(req: NextRequest) {
       response_format: 'verbose_json',
       timestamp_granularities: ['segment'],
     });
+    console.log('Whisper transcription completed');
 
     // Generate SRT
     const srt = convertToSRT(transcription.segments || []);
@@ -148,10 +170,27 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Provide more specific error messages
+    let errorMessage = 'Failed to process YouTube video';
+    if (error instanceof Error) {
+      if (error.message.includes('Sign in to confirm')) {
+        errorMessage = 'Video is age-restricted. Please use a different video.';
+      } else if (error.message.includes('Video unavailable')) {
+        errorMessage = 'Video is unavailable or private. Please use a public video.';
+      } else if (error.message.includes('too large')) {
+        errorMessage = error.message;
+      } else if (error.message.includes('timeout')) {
+        errorMessage = 'Request timeout. Please try a shorter video.';
+      } else {
+        errorMessage = error.message;
+      }
+    }
+
     return NextResponse.json(
       { 
-        error: 'Failed to process YouTube video', 
-        details: error instanceof Error ? error.message : 'Unknown error' 
+        error: errorMessage,
+        details: error instanceof Error ? error.message : 'Unknown error',
+        hint: 'Try using a short public video (< 2 minutes)'
       },
       { status: 500 }
     );

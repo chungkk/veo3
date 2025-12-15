@@ -98,8 +98,12 @@ export default function Home() {
 
       const data = await response.json();
       setTranscript(data.transcript);
+      if (data.cached) {
+        alert('✅ Kết quả từ cache (đã xử lý trước đó)');
+      }
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Unknown error');
+      console.error('YouTube processing error:', err);
       setYtError(error.message);
     } finally {
       setProcessing(false);
