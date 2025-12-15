@@ -11,8 +11,9 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [story, setStory] = useState<Story | null>(null);
-  const [expandedScenes, setExpandedScenes] = useState<Set<number>>(new Set());
-  const [expandedFrames, setExpandedFrames] = useState<Set<string>>(new Set());
+  const [expandedSentences, setExpandedSentences] = useState<Set<number>>(new Set());
+  const [expandedIdeas, setExpandedIdeas] = useState<Set<string>>(new Set());
+  const [copiedIdeas, setCopiedIdeas] = useState<Set<string>>(new Set());
 
   // YouTube to SRT State
   const [youtubeUrl, setYoutubeUrl] = useState('');
@@ -45,7 +46,7 @@ export default function Home() {
 
       const data = await response.json();
       setStory(data.story);
-      setExpandedScenes(new Set([1]));
+      setExpandedSentences(new Set([1]));
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Unknown error');
       setError(error.message);
@@ -54,24 +55,41 @@ export default function Home() {
     }
   };
 
-  const toggleScene = (sceneNumber: number) => {
-    const newExpanded = new Set(expandedScenes);
-    if (newExpanded.has(sceneNumber)) {
-      newExpanded.delete(sceneNumber);
+  const toggleSentence = (sentenceNumber: number) => {
+    const newExpanded = new Set(expandedSentences);
+    if (newExpanded.has(sentenceNumber)) {
+      newExpanded.delete(sentenceNumber);
     } else {
-      newExpanded.add(sceneNumber);
+      newExpanded.add(sentenceNumber);
     }
-    setExpandedScenes(newExpanded);
+    setExpandedSentences(newExpanded);
   };
 
-  const toggleFrame = (key: string) => {
-    const newExpanded = new Set(expandedFrames);
+  const toggleIdea = (key: string) => {
+    const newExpanded = new Set(expandedIdeas);
     if (newExpanded.has(key)) {
       newExpanded.delete(key);
     } else {
       newExpanded.add(key);
     }
-    setExpandedFrames(newExpanded);
+    setExpandedIdeas(newExpanded);
+  };
+
+  const copyPrompt = (ideaKey: string, prompt: string) => {
+    navigator.clipboard.writeText(prompt);
+    setCopiedIdeas((prev) => {
+      const newCopied = new Set(prev);
+      newCopied.add(ideaKey);
+      return newCopied;
+    });
+    
+    setTimeout(() => {
+      setCopiedIdeas((prev) => {
+        const resetCopied = new Set(prev);
+        resetCopied.delete(ideaKey);
+        return resetCopied;
+      });
+    }, 2000);
   };
 
   const processYouTube = async () => {
@@ -207,46 +225,46 @@ export default function Home() {
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-semibold">Kết Quả Phân Tích</h2>
               <span className="text-sm text-gray-500">
-                {story.scenes.length} cảnh • {story.scenes.reduce((acc, s) => acc + s.frames.length, 0)} khung hình
+                {story.sentences.length} câu • {story.sentences.reduce((acc, s) => acc + s.ideas.length, 0)} ý tưởng
               </span>
             </div>
 
             <div className="space-y-4">
-              {story.scenes.map((scene) => (
-                <div key={scene.sceneNumber} className="border border-gray-200 rounded-lg overflow-hidden">
+              {story.sentences.map((sentence) => (
+                <div key={sentence.sentenceNumber} className="border border-gray-200 rounded-lg overflow-hidden">
                   <button
-                    onClick={() => toggleScene(scene.sceneNumber)}
+                    onClick={() => toggleSentence(sentence.sentenceNumber)}
                     className="w-full px-4 py-3 bg-gradient-to-r from-purple-100 to-blue-100 hover:from-purple-200 hover:to-blue-200 transition text-left flex justify-between items-center"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="text-2xl">{expandedScenes.has(scene.sceneNumber) ? '🎬' : '📽️'}</span>
-                      <div>
-                        <h3 className="font-bold text-lg">Cảnh {scene.sceneNumber}</h3>
-                        <p className="text-sm text-gray-700">{scene.sceneDescription}</p>
+                      <span className="text-2xl">{expandedSentences.has(sentence.sentenceNumber) ? '📝' : '📄'}</span>
+                      <div className="flex-1">
+                        <h3 className="font-bold text-lg">Câu {sentence.sentenceNumber}</h3>
+                        <p className="text-sm text-gray-700 line-clamp-2">{sentence.sentenceText}</p>
                       </div>
                     </div>
-                    <span className="text-gray-500">
-                      {expandedScenes.has(scene.sceneNumber) ? '▼' : '▶'} {scene.frames.length} frames
+                    <span className="text-gray-500 flex-shrink-0 ml-2">
+                      {expandedSentences.has(sentence.sentenceNumber) ? '▼' : '▶'} {sentence.ideas.length} ý
                     </span>
                   </button>
 
-                  {expandedScenes.has(scene.sceneNumber) && (
+                  {expandedSentences.has(sentence.sentenceNumber) && (
                     <div className="p-4 space-y-3 bg-gray-50">
-                      {scene.frames.map((frame) => {
-                        const frameKey = `${scene.sceneNumber}-${frame.frameNumber}`;
-                        const isExpanded = expandedFrames.has(frameKey);
+                      {sentence.ideas.map((idea) => {
+                        const ideaKey = `${sentence.sentenceNumber}-${idea.ideaNumber}`;
+                        const isExpanded = expandedIdeas.has(ideaKey);
 
                         return (
-                          <div key={frameKey} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                          <div key={ideaKey} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
                             <button
-                              onClick={() => toggleFrame(frameKey)}
+                              onClick={() => toggleIdea(ideaKey)}
                               className="w-full px-4 py-3 hover:bg-gray-50 transition text-left flex justify-between items-center"
                             >
                               <div className="flex items-center gap-3">
-                                <span className="text-xl">🎞️</span>
+                                <span className="text-xl">💡</span>
                                 <div>
-                                  <h4 className="font-semibold">Frame {frame.frameNumber}</h4>
-                                  <p className="text-sm text-gray-600">{frame.frameDescription}</p>
+                                  <h4 className="font-semibold">Ý {idea.ideaNumber}</h4>
+                                  <p className="text-sm text-gray-600">{idea.ideaDescription}</p>
                                 </div>
                               </div>
                               <span className="text-gray-500 text-sm">
@@ -258,16 +276,17 @@ export default function Home() {
                               <div className="px-4 py-3 bg-gradient-to-br from-green-50 to-teal-50 border-t border-gray-200">
                                 <h5 className="font-semibold text-sm text-gray-700 mb-2">📝 Video Prompt:</h5>
                                 <p className="text-sm leading-relaxed text-gray-800 mb-3 p-3 bg-white rounded border border-green-200">
-                                  {frame.prompt}
+                                  {idea.prompt}
                                 </p>
                                 <button
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(frame.prompt);
-                                    alert('Đã copy prompt vào clipboard!');
-                                  }}
-                                  className="w-full px-4 py-2 bg-gradient-to-r from-green-600 to-teal-600 text-white font-semibold rounded-lg hover:from-green-700 hover:to-teal-700 transition"
+                                  onClick={() => copyPrompt(ideaKey, idea.prompt)}
+                                  className={`w-full px-4 py-2 font-semibold rounded-lg transition-all ${
+                                    copiedIdeas.has(ideaKey)
+                                      ? 'bg-gradient-to-r from-emerald-600 to-green-600 text-white scale-105'
+                                      : 'bg-gradient-to-r from-green-600 to-teal-600 text-white hover:from-green-700 hover:to-teal-700'
+                                  }`}
                                 >
-                                  🎥 Copy Prompt để Generate Video
+                                  {copiedIdeas.has(ideaKey) ? '✅ Đã Copy!' : '🎥 Copy Prompt để Generate Video'}
                                 </button>
                               </div>
                             )}

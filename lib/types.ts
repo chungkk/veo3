@@ -2,22 +2,22 @@ export interface PromptSuggestion {
   suggestions: string[];
 }
 
-export interface Frame {
-  frameNumber: number;
-  frameDescription: string;
+export interface PromptIdea {
+  ideaNumber: number;
+  ideaDescription: string;
   prompt: string;
 }
 
-export interface Scene {
-  sceneNumber: number;
-  sceneDescription: string;
-  frames: Frame[];
+export interface Sentence {
+  sentenceNumber: number;
+  sentenceText: string;
+  ideas: PromptIdea[];
 }
 
 export interface Story {
   _id: string;
   originalText: string;
-  scenes: Scene[];
+  sentences: Sentence[];
   createdAt: string;
   updatedAt: string;
 }

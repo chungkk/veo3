@@ -30,24 +30,32 @@ export async function POST(req: NextRequest) {
             role: 'system',
             content: `Bạn là chuyên gia phân tích kịch bản phim và viết prompt cho AI video generation.
 
-Nhiệm vụ: Phân tích văn bản thành cấu trúc hierarchical:
-1. **Scenes**: Các cảnh riêng biệt (địa điểm/thời gian/hành động chính)
-2. **Frames**: Mỗi cảnh chia thành 2-4 khung hình nhỏ (góc quay/moment cụ thể)
-3. **Prompts**: Mỗi frame có prompt chi tiết để generate video
+Nhiệm vụ: Phân tích văn bản thành cấu trúc hierarchical chi tiết:
+1. **Sentences**: Tách văn bản thành từng câu riêng biệt
+2. **Ideas**: Mỗi câu phân tích thành các ý nhỏ (visual concepts, metaphors, actions)
+3. **Prompts**: Mỗi ý nhỏ có prompt chi tiết để generate video
 
-Prompt phải bao gồm: màu sắc, ánh sáng, góc quay, hành động, cảm xúc, camera angle, mood.
+Quy trình phân tích:
+- Tách text thành các câu hoàn chỉnh
+- Mỗi câu xác định các ý chính (thường 1-3 ý/câu)
+- Mỗi ý tạo prompt video với: màu sắc, ánh sáng, góc quay, hành động, cảm xúc, camera angle, mood
+
+Ví dụ:
+Câu: "Hãy tưởng tượng bạn là một người điều hành điên rồ quyết định đốt sạch toàn bộ giá trị vốn hóa của hãng xe Ford Motor"
+→ Ý 1: Người điều hành điên rồ (visual: crazy executive)
+→ Ý 2: Đốt sạch giá trị Ford Motor (metaphor: burning money/value)
 
 Trả về JSON format:
 {
-  "scenes": [
+  "sentences": [
     {
-      "sceneNumber": 1,
-      "sceneDescription": "Mô tả cảnh",
-      "frames": [
+      "sentenceNumber": 1,
+      "sentenceText": "Câu gốc...",
+      "ideas": [
         {
-          "frameNumber": 1,
-          "frameDescription": "Mô tả frame",
-          "prompt": "Detailed video generation prompt with all technical details..."
+          "ideaNumber": 1,
+          "ideaDescription": "Mô tả ý chính",
+          "prompt": "Detailed video generation prompt..."
         }
       ]
     }
@@ -56,7 +64,7 @@ Trả về JSON format:
           },
           {
             role: 'user',
-            content: `Phân tích văn bản sau thành scenes → frames → prompts:\n\n${text}`,
+            content: `Phân tích văn bản sau thành sentences → ideas → prompts:\n\n${text}`,
           },
         ],
         response_format: { type: 'json_object' },
@@ -71,13 +79,13 @@ Trả về JSON format:
 
     const response = analysisResponse as ChatCompletion;
     const result = JSON.parse(response.choices[0].message.content || '{}');
-    const scenes = result.scenes || [];
+    const sentences = result.sentences || [];
 
     // Step 4: Lưu vào MongoDB
     await connectDB();
     const story = new Story({
       originalText: text,
-      scenes,
+      sentences,
     });
     await story.save();
 
@@ -86,7 +94,7 @@ Trả về JSON format:
       story: {
         _id: story._id,
         originalText: story.originalText,
-        scenes: story.scenes,
+        sentences: story.sentences,
         createdAt: story.createdAt,
         updatedAt: story.updatedAt,
       },
