@@ -1,4 +1,4 @@
-/* eslint-disable no-var */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 declare global {
   namespace NodeJS {
     interface Global {

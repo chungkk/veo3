@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import type { ChatCompletion } from 'openai/resources/chat/completions';
 import connectDB from '@/lib/mongodb';
 import Story from '@/lib/models/Story';
 import { config } from '@/lib/config';
@@ -10,106 +11,67 @@ const openai = new OpenAI({
 
 export async function POST(req: NextRequest) {
   try {
+    console.log('=== Analyze Story API Called ===');
     const { text } = await req.json();
+    console.log('Text length:', text?.length || 0);
 
     if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      console.log('Error: Text is required');
       return NextResponse.json({ error: 'Text is required' }, { status: 400 });
     }
 
-    // Step 1: Phân tích text thành các scenes
-    const scenesResponse = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: `Bạn là chuyên gia phân tích kịch bản phim. Nhiệm vụ của bạn là phân tích văn bản thành các cảnh (scenes) riêng biệt. Mỗi cảnh nên có một địa điểm, thời gian hoặc hành động chính rõ ràng.
-
-Trả về JSON với format:
-{
-  "scenes": [
-    {
-      "sceneNumber": 1,
-      "sceneDescription": "Mô tả cảnh này"
-    }
-  ]
-}`,
-        },
-        {
-          role: 'user',
-          content: `Phân tích văn bản sau thành các cảnh:\n\n${text}`,
-        },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.7,
-    });
-
-    const scenesData = JSON.parse(scenesResponse.choices[0].message.content || '{}');
-    const scenes = scenesData.scenes || [];
-
-    // Step 2: Với mỗi scene, chia thành frames
-    for (const scene of scenes) {
-      const framesResponse = await openai.chat.completions.create({
+    // Single OpenAI call để phân tích toàn bộ
+    console.log('Analyzing story with OpenAI...');
+    const analysisResponse = await Promise.race([
+      openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
-            content: `Bạn là chuyên gia phân cảnh phim. Nhiệm vụ của bạn là chia một cảnh thành các khung hình (frames) nhỏ hơn. Mỗi frame nên là một góc quay, hành động hoặc moment cụ thể.
+            content: `Bạn là chuyên gia phân tích kịch bản phim và viết prompt cho AI video generation.
 
-Trả về JSON với format:
+Nhiệm vụ: Phân tích văn bản thành cấu trúc hierarchical:
+1. **Scenes**: Các cảnh riêng biệt (địa điểm/thời gian/hành động chính)
+2. **Frames**: Mỗi cảnh chia thành 2-4 khung hình nhỏ (góc quay/moment cụ thể)
+3. **Prompts**: Mỗi frame có prompt chi tiết để generate video
+
+Prompt phải bao gồm: màu sắc, ánh sáng, góc quay, hành động, cảm xúc, camera angle, mood.
+
+Trả về JSON format:
 {
-  "frames": [
+  "scenes": [
     {
-      "frameNumber": 1,
-      "frameDescription": "Mô tả khung hình này"
+      "sceneNumber": 1,
+      "sceneDescription": "Mô tả cảnh",
+      "frames": [
+        {
+          "frameNumber": 1,
+          "frameDescription": "Mô tả frame",
+          "prompt": "Detailed video generation prompt with all technical details..."
+        }
+      ]
     }
   ]
 }`,
           },
           {
             role: 'user',
-            content: `Chia cảnh sau thành các khung hình:\n\nCảnh ${scene.sceneNumber}: ${scene.sceneDescription}`,
+            content: `Phân tích văn bản sau thành scenes → frames → prompts:\n\n${text}`,
           },
         ],
         response_format: { type: 'json_object' },
         temperature: 0.7,
-      });
+        max_tokens: 4000,
+      }),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('OpenAI request timeout after 60s')), 60000)
+      )
+    ]);
+    console.log('OpenAI analysis completed');
 
-      const framesData = JSON.parse(framesResponse.choices[0].message.content || '{}');
-      const frames = framesData.frames || [];
-
-      // Step 3: Với mỗi frame, tạo prompt chi tiết
-      scene.frames = [];
-      for (const frame of frames) {
-        const promptResponse = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: `Bạn là chuyên gia viết prompt cho AI tạo video. Nhiệm vụ của bạn là viết prompt chi tiết, rõ ràng cho từng khung hình.
-
-Prompt cần bao gồm:
-- Mô tả hình ảnh cụ thể (màu sắc, ánh sáng, góc quay)
-- Hành động và chuyển động
-- Cảm xúc và không khí
-- Chi tiết kỹ thuật (camera angle, lighting, mood)
-
-Chỉ trả về prompt, không giải thích thêm.`,
-            },
-            {
-              role: 'user',
-              content: `Viết prompt chi tiết cho khung hình:\n\nCảnh ${scene.sceneNumber}: ${scene.sceneDescription}\nFrame ${frame.frameNumber}: ${frame.frameDescription}`,
-            },
-          ],
-          temperature: 0.8,
-        });
-
-        scene.frames.push({
-          frameNumber: frame.frameNumber,
-          frameDescription: frame.frameDescription,
-          prompt: promptResponse.choices[0].message.content?.trim() || '',
-        });
-      }
-    }
+    const response = analysisResponse as ChatCompletion;
+    const result = JSON.parse(response.choices[0].message.content || '{}');
+    const scenes = result.scenes || [];
 
     // Step 4: Lưu vào MongoDB
     await connectDB();

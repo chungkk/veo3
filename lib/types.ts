@@ -21,3 +21,15 @@ export interface Story {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface VideoTranscript {
+  _id: string;
+  youtubeUrl: string;
+  videoTitle: string;
+  transcript: string;
+  srt: string;
+  duration: number;
+  language: string;
+  createdAt: string;
+  updatedAt: string;
+}
